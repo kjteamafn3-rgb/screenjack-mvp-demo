@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ScreenJack - Demo Casino Overlay</title>
+    <style>
+        body, html { margin: 0; height: 100%; background: #000; font-family: monospace; color: #0f0; overflow: hidden; }
+        #overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 2147483647; pointer-events: none; }
+        canvas { display: block; }
+        #start { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 3rem; color: #f0f; text-shadow: 0 0 10px #f0f; cursor: pointer; background: rgba(255,0,255,0.3); padding: 20px; border-radius: 10px; z-index: 2147483648; pointer-events: auto; }
+    </style>
+</head>
+<body>
+    <canvas id="overlay"></canvas>
+    <button id="start">SHARE YOUR SCREEN</button>
+    <p style="position: fixed; bottom: 20px; left: 20px; color: #fff; font-size: 12px;">No real wagers. Screen overlay demo.</p>
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        if (!location.hash.includes('jack')) {
+            document.body.innerHTML = "<h1 style='color:#fff;text-align:center;margin-top:20%;font-size:4rem'>404 - Nothing here... unless you share your screen</h1>";
+        }
+        const socket = io();
+        document.getElementById('start')?.addEventListener('click', async () => {
+            try {
+                const stream = await navigator.mediaDevices.getDisplayMedia({video:true});
+                document.getElementById('start').remove();
+                const canvas = document.getElementById('overlay');
+                const ctx = canvas.getContext('2d');
+                canvas.width = screen.width * devicePixelRatio;
+                canvas.height = screen.height * devicePixelRatio;
+                let multiplier = 1;
+                let gameActive = true;
+                const drawCrash = () => {
+                    if (!gameActive) return;
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    ctx.fillStyle = '#f0f';
+                    ctx.font = '120px monospace';
+                    ctx.fillText('ROCKET', canvas.width/3, canvas.height/2);
+                    ctx.fillStyle = '#0ff';
+                    ctx.font = '200px monospace';
+                    ctx.fillText(multiplier.toFixed(2) + 'x', canvas.width/3, canvas.height/1.5);
+                    ctx.strokeStyle = '#0f0';
+                    ctx.lineWidth = 20;
+                    ctx.beginPath();
+                    ctx.moveTo(0, canvas.height);
+                    ctx.quadraticCurveTo(canvas.width/2, canvas.height/2, canvas.width, 100);
+                    ctx.stroke();
+                    multiplier += 0.08;
+                    if (Math.random() < 0.02) {
+                        gameActive = false;
+                        ctx.fillStyle = '#f00';
+                        ctx.font = '300px monospace';
+                        ctx.fillText('BUSTED', canvas.width/5, canvas.height/1.8);
+                        speechSynthesis.speak(new SpeechSynthesisUtterance("BUSTED BRO"));
+                    } else {
+                        requestAnimationFrame(drawCrash);
+                        if (multiplier % 1 < 0.1) {
+                            speechSynthesis.speak(new SpeechSynthesisUtterance(multiplier.toFixed(0)+"x and climbing"));
+                        }
+                    }
+                };
+                drawCrash();
+                socket.on('rain', ({amount}) => {
+                    ctx.fillStyle = '#ff0';
+                    ctx.font = '80px monospace';
+                    ctx.fillText(`RAIN: +${amount.toLocaleString()} demo coins`, canvas.width/6, canvas.height/4);
+                    speechSynthesis.speak(new SpeechSynthesisUtterance("Bonus rain!"));
+                });
+                canvas.onclick = () => {
+                    if (gameActive) {
+                        socket.emit('rain-request');
+                        alert("Cashed out at " + multiplier.toFixed(2) + "x - You win 100,000 demo coins!");
+                        gameActive = false;
+                    }
+                };
+                stream.getVideoTracks()[0].onended = () => {
+                    gameActive = false;
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    ctx.fillStyle = '#fff';
+                    ctx.font = '100px monospace';
+                    ctx.fillText('Session Ended - Get Another Link', canvas.width/4, canvas.height/2);
+                };
+            } catch(e) {
+                alert("Screen share denied - no casino for you");
+            }
+        });
+    </script>
+</body>
+</html>
